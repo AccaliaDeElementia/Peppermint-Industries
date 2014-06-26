@@ -1,0 +1,28 @@
+﻿<Page
+    x:Class="ImageGallery.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:ImageGallery"
+    xmlns:common="using:PeppermintCommon"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    <Page.TopAppBar>
+        <CommandBar>
+            <AppBarButton x:Name="OpenFolder" Icon="OpenLocal" Label="Open Folder" Click="OpenFolder_Click" />
+        </CommandBar>
+    </Page.TopAppBar>
+    <Page.BottomAppBar>
+        <CommandBar>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton x:Name="FirstImage" Icon="Previous" Label="First Image" />
+                <AppBarButton x:Name="LastImage" Icon="Next" Label="Last Image" />
+            </CommandBar.SecondaryCommands>
+            <AppBarButton x:Name="PrevImage" Icon="Back" Label="Previous" />
+            <AppBarButton x:Name="NextImage" Icon="Next" Label="Next" Click="NextImage_OnClick" />
+        </CommandBar>
+    </Page.BottomAppBar>
+    <Grid Name="MainPanel" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <common:Image x:Name="Image" Margin="0"/>
+    </Grid>
+</Page>
