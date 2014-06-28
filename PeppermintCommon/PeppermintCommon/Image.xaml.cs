@@ -23,7 +23,7 @@ namespace PeppermintCommon
         public uint FrameCount { get; private set; }
         private readonly List<FrameInfo> _frames = new List<FrameInfo>();
 
-        public async void LoadImage(IRandomAccessStreamReference file)
+        public async Task LoadImage(IRandomAccessStreamReference file)
         {
             await DecodeImage(file);
             BuildStoryBoard();

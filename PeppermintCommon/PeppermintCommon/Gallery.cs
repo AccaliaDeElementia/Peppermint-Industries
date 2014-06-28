@@ -11,8 +11,14 @@ namespace PeppermintCommon
 {
     public class Gallery
     {
-        private IEnumerable<StorageFile> _files;
+        private List<StorageFile> _files;
         private StorageFile _current;
+        private StorageFolder _folder;
+
+        public string GalleryName { get { return _folder != null ? _folder.Name : @"[No Gallery]"; } }
+        public string ImageName { get { return _current != null ? _current.Name : @"[No Image]"; } }
+        public int ImageCount { get { return _files != null ? _files.Count() : 0; } }
+        public int ImageIndex { get { return _files != null ? _files.Select(o=>o.Name).ToList().IndexOf(_current.Name) + 1 : 0; } }
         public async Task<StorageFile> OpenFolder()
         {
             var picker = new FolderPicker
@@ -25,18 +31,18 @@ namespace PeppermintCommon
             picker.FileTypeFilter.Add(".jpeg");
             picker.FileTypeFilter.Add(".png");
             picker.FileTypeFilter.Add(".gif");
-            var folder = await picker.PickSingleFolderAsync();
-            StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryFolder", folder);
-            return await LoadDirectory(folder);
+            _folder = await picker.PickSingleFolderAsync();
+            StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryFolder", _folder);
+            return await LoadDirectory(_folder);
 
         }
-
+        
         public async Task<StorageFile> OpenLastFolder()
         {
             try
             {
-                var last = await StorageApplicationPermissions.FutureAccessList.GetFolderAsync("GalleryFolder");
-                var first = await LoadDirectory(last);
+                _folder = await StorageApplicationPermissions.FutureAccessList.GetFolderAsync("GalleryFolder");
+                var first = await LoadDirectory(_folder);
                 if (!StorageApplicationPermissions.FutureAccessList.ContainsItem("GalleryImage")) return first;
                 var img = await StorageApplicationPermissions.FutureAccessList.GetFileAsync("GalleryImage");
                 var ret = _files.Any(o => o.Name == img.Name) ? img : first;
@@ -48,14 +54,14 @@ namespace PeppermintCommon
             }
         }
 
-        private async Task<StorageFile> LoadDirectory(StorageFolder sf)
+        private async Task<StorageFile> LoadDirectory(IStorageFolder sf, IStorageItemProperties target=null)
         {
             var types = new[] { ".jpg", ".jpeg", ".png", ".gif", ".tif" };
-            _files = from file in await sf.GetFilesAsync()
+            _files = (from file in await sf.GetFilesAsync()
                     where types.Contains(file.FileType)
                     orderby MungeName(file.Name)
-                    select file;
-            return _current = _files.FirstOrDefault();
+                    select file).ToList();
+            return _current = _files.FirstOrDefault(o=> target == null || o.FolderRelativeId == target.FolderRelativeId);
         }
         public StorageFile NextImage()
         {

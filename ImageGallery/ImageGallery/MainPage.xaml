@@ -22,7 +22,24 @@
             <AppBarButton x:Name="NextImage" Icon="Next" Label="Next" Click="NextImage_OnClick" />
         </CommandBar>
     </Page.BottomAppBar>
-    <Grid Name="MainPanel" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <common:Image x:Name="Image" Margin="0" PointerReleased="Image_OnPointerReleased" />
+    <Grid>
+        <Grid Name="TopStrip" Canvas.ZIndex="5" VerticalAlignment="Top" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Opacity=".75">
+            <TextBlock Name="txtTopLeft" HorizontalAlignment="Left" VerticalAlignment="Center" FontSize="16" Margin="3" />
+            <TextBlock Name="txtTopMid" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" Margin="3"/>
+            <TextBlock Name="txtTopRight" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="16" Margin="3"/>
+        </Grid>
+        <Grid Name="LoadingOverlay" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Canvas.ZIndex="10" Opacity=".5">
+            <Grid VerticalAlignment="Center" HorizontalAlignment="Center" Width="300" Height="75" Opacity="1">
+                <TextBlock FontSize="32" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center">Loading...</TextBlock>
+            </Grid>
+        </Grid>
+        <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Tapped="ImageGrid_OnTapped">
+            <common:Image x:Name="Image" Margin="0" />
+        </Grid>
+        <Grid Name="BottomStrip" Canvas.ZIndex="5" VerticalAlignment="Bottom"  Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Opacity=".75">
+            <TextBlock Name="txtBottomLeft" HorizontalAlignment="Left" VerticalAlignment="Center" FontSize="16" Margin="3" />
+            <TextBlock Name="txtBottomMid" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" Margin="3" />
+            <TextBlock Name="txtBottomRight" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="16" Margin="3" />
+        </Grid>
     </Grid>
 </Page>
