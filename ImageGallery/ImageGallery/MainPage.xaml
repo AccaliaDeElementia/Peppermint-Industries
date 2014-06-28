@@ -15,14 +15,14 @@
     <Page.BottomAppBar>
         <CommandBar>
             <CommandBar.SecondaryCommands>
-                <AppBarButton x:Name="FirstImage" Icon="Previous" Label="First Image" />
-                <AppBarButton x:Name="LastImage" Icon="Next" Label="Last Image" />
+                <AppBarButton x:Name="FirstImage" Icon="Previous" Label="First Image" Click="FirstImage_OnClick"/>
+                <AppBarButton x:Name="LastImage" Icon="Next" Label="Last Image" Click="LastImage_OnClick"/>
             </CommandBar.SecondaryCommands>
-            <AppBarButton x:Name="PrevImage" Icon="Back" Label="Previous" />
+            <AppBarButton x:Name="PrevImage" Icon="Back" Label="Previous" Click="PrevImage_OnClick" />
             <AppBarButton x:Name="NextImage" Icon="Next" Label="Next" Click="NextImage_OnClick" />
         </CommandBar>
     </Page.BottomAppBar>
     <Grid Name="MainPanel" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <common:Image x:Name="Image" Margin="0"/>
+        <common:Image x:Name="Image" Margin="0" PointerReleased="Image_OnPointerReleased" />
     </Grid>
 </Page>
