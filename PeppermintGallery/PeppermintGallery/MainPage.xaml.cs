@@ -1,17 +1,14 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Windows.Storage;
-using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Navigation;
 using PeppermintCommon;
 
-namespace ImageGallery
+namespace PeppermintGallery
 {
     public sealed partial class MainPage
     {
@@ -57,7 +54,7 @@ namespace ImageGallery
             }
         }
 
-        private readonly AnimatedGallery _animatedGallery = new AnimatedGallery(1);
+        private readonly AnimatedGallery _animatedGallery = new AnimatedGallery(5);
         private readonly object _locker = new object();
 
         private bool IsLoading { get; set; }
@@ -157,7 +154,7 @@ namespace ImageGallery
             if (grid == null) return;
             var width = grid.ActualWidth;
             var tapx = e.GetPosition(grid).X;
-            if (tapx > width/3d)
+            if (tapx > width / 3d)
             {
                 LoadImage(_animatedGallery.NextImage);
             }
@@ -209,7 +206,7 @@ namespace ImageGallery
             {
                 await Task.Delay(15000);
                 var img = await _animatedGallery.NextImage();
-                LoadAnimatedImage(img);
+                await LoadAnimatedImage(img);
                 bool next;
                 lock (_locker)
                 {
@@ -218,7 +215,7 @@ namespace ImageGallery
                 play = next && await img.Value != null;
             }
         }
-        private bool _playing = false;
+        private bool _playing;
         private void Slideshow_Click(object sender, RoutedEventArgs e)
         {
             PlaySlideshow();

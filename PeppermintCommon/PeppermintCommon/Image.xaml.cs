@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
+using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
@@ -29,7 +30,7 @@ namespace PeppermintCommon
         
         public event EventHandler ImageLoaded = (o, e) => { };
 
-        public async Task LoadImage(IRandomAccessStreamReference file)
+        public async Task LoadImage(IRandomAccessStream file)
         {
             ImageSource = await AnimatedBitmap.Create(file);
         }

@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
+using Windows.Storage.Streams;
 
 namespace PeppermintCommon
 {
@@ -16,7 +17,9 @@ namespace PeppermintCommon
         private List<StorageFile> _files;
         private int _current;
         private readonly int _queueLength;
-        private readonly List<AwaitableLazy<AnimatedBitmap>> _nextList = new List<AwaitableLazy<AnimatedBitmap>>();
+        private  int _cachelength = 1;
+        private readonly SortedDictionary<string, AwaitableLazy<IRandomAccessStream>> _cache =
+            new SortedDictionary<string, AwaitableLazy<IRandomAccessStream>>();
 
         public AnimatedGallery(int queueLength = 5)
         {
@@ -27,6 +30,12 @@ namespace PeppermintCommon
         public string GalleryName { get { return _folder.Name; } }
         public int ImageIndex { get { return _current + 1; } }
         public int ImageCount { get { return _files.Count; } }
+
+        private async static Task<AwaitableLazy<AnimatedBitmap>> MakeBitmap(AwaitableLazy<IRandomAccessStream> stream )
+        {
+            var strm = await stream.Value;
+            return new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(strm));
+        } 
 
         public async Task<AwaitableLazy<AnimatedBitmap>> OpenFolder()
         {
@@ -41,10 +50,15 @@ namespace PeppermintCommon
             picker.FileTypeFilter.Add(".png");
             picker.FileTypeFilter.Add(".gif");
             _folder = await picker.PickSingleFolderAsync();
+            if (_folder == null) return null;
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryFolder", _folder);
             await LoadDirectory(_folder);
-            FillQueue();
-            return _nextList.FirstOrDefault();
+            UpdateCache();
+            // don't enable cache until first image loaded.
+            await _cache.First().Value.Value;
+            _cachelength = _queueLength;
+            UpdateCache();
+            return await MakeBitmap(_cache.First().Value);
         }
 
         public async Task<AwaitableLazy<AnimatedBitmap>> OpenLastFolder()
@@ -58,8 +72,12 @@ namespace PeppermintCommon
                     tgt = await StorageApplicationPermissions.FutureAccessList.GetFileAsync("GalleryImage");
                 }
                 await LoadDirectory(_folder, tgt);
-                FillQueue();
-                return _nextList.FirstOrDefault();
+                UpdateCache();
+                // don't enable cache until first image loaded.
+                await _cache.First().Value.Value;
+                _cachelength = _queueLength;
+                UpdateCache();
+                return await MakeBitmap(_cache.First().Value);
             }
             catch
             {
@@ -67,16 +85,37 @@ namespace PeppermintCommon
             }
         }
 
-        private void FillQueue()
+        private async static Task<IRandomAccessStream> ReadFile(IStorageFile file)
         {
-            _nextList.Clear();
-            foreach (var tgt in
-                from itarget in _files.Skip(_current).Take(_queueLength)
-                select new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(itarget)) into tgt
-                let ignore = tgt.Value
-                select tgt)
+            var strm = new InMemoryRandomAccessStream();
+            using (var reader = await file.OpenStreamForReadAsync())
             {
-                _nextList.Add(tgt);
+                await reader.CopyToAsync(strm.AsStreamForWrite());
+            }
+            return strm;
+        }
+
+        private void UpdateCache()
+        {
+            var self = MungeName(_files[_current].Name);
+            //Ignoring this warning because otherwise comparison will be inconsistent with ordering
+            // ReSharper disable once StringCompareIsCultureSpecific.1
+            foreach (var kvp in _cache.Where(o => String.Compare(o.Key, self) < 0).ToList())
+            {
+                _cache.Remove(kvp.Key);
+            }
+            foreach (var file in _files.Skip(_current).Take(_queueLength).Where(o => !_cache.ContainsKey(o.Name)))
+            {
+                var tgtfile = file;
+                var tgt = new AwaitableLazy<IRandomAccessStream>(()=>ReadFile(tgtfile));
+                // Start the Lazy<> container finding a value, we don't want to wait on it though.
+                // ReSharper disable once UnusedVariable
+                var ignore = tgt.Value;
+                _cache[MungeName(file.Name)] = tgt;
+            }
+            foreach (var kvp in _cache.Skip(_cachelength).ToList())
+            {
+                _cache.Remove(kvp.Key);
             }
         }
 
@@ -94,42 +133,50 @@ namespace PeppermintCommon
             }
         }
 
-        public AwaitableLazy<AnimatedBitmap> NextImage()
+        #region Navigation
+        // ReSharper disable once CSharpWarnings::CS1998
+        public async Task<AwaitableLazy<AnimatedBitmap>> NextImage()
         {
             var nextIdx = _current + 1;
             if (_files == null || !_files.Any() || nextIdx >= _files.Count) return null;
-            _nextList.RemoveAt(0);
-            if (nextIdx + _queueLength < _files.Count)
-            {
-                var tgtfile = _files[nextIdx + _queueLength];
-                var tgt = new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(tgtfile));
-                var ignore = tgt.Value;
-                _nextList.Add(tgt);
-            }
             _current = nextIdx;
-            
+            UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return _nextList[0];
+            return await MakeBitmap(_cache.First().Value);
         }
 
-        public AwaitableLazy<AnimatedBitmap> PrevImage()
+        // ReSharper disable once CSharpWarnings::CS1998
+        public async Task<AwaitableLazy<AnimatedBitmap>> PrevImage()
         {
             var nextIdx = _current - 1;
             if (_files == null || !_files.Any() || nextIdx < 0) return null;
 
-            var tgtfile = _files[nextIdx];
-            var tgt = new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(tgtfile));
-            var ignore = tgt.Value;
-            _nextList.Insert(0, tgt);
-            while (_nextList.Count > _queueLength)
-            {
-                _nextList.RemoveAt(_nextList.Count - 1);
-            }
             _current = nextIdx;
+            UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return _nextList[0];
+            return await MakeBitmap(_cache.First().Value);
         }
 
+        // ReSharper disable once CSharpWarnings::CS1998
+        public async Task<AwaitableLazy<AnimatedBitmap>> LastImage()
+        {
+            _current = _files.Count - 1;
+            UpdateCache();
+            StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
+            return await MakeBitmap(_cache.First().Value);
+        }
+
+        // ReSharper disable once CSharpWarnings::CS1998
+        public async Task<AwaitableLazy<AnimatedBitmap>> FirstImage()
+        {
+            _current = 0;
+            UpdateCache();
+            StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
+            return await MakeBitmap(_cache.First().Value);
+        }
+        #endregion Navigation
+
+        #region Munger
         private static readonly Regex MungePattern = new Regex(@"(\d+)|(\D+)");
 
         private static string MungeName(string name)
@@ -138,30 +185,6 @@ namespace PeppermintCommon
                 from Match part in MungePattern.Matches(name)
                 select part.Groups[1].Length > 0 ? part.Value.PadLeft(20, '0') : part.Value);
         }
-
-        public AwaitableLazy<AnimatedBitmap> LastImage()
-        {
-            var tgt = _nextList.Last();
-            if (_current + _queueLength < _files.Count)
-            {
-                var tgtfile = _files.Last();
-                tgt = new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(tgtfile));
-                var ignore = tgt.Value;
-            }
-            _nextList.Clear();
-            _nextList.Insert(0, tgt);
-
-            _current = _files.Count - 1;
-            StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return _nextList[0];
-        }
-
-        public AwaitableLazy<AnimatedBitmap> FirstImage()
-        {
-            _current = 0;
-            FillQueue();
-            StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return _nextList[0];
-        }
+        #endregion Munger
     }
 }

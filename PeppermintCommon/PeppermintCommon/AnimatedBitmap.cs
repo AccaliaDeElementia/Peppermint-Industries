@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
+using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Imaging;
 
@@ -14,14 +15,11 @@ namespace PeppermintCommon
         public int Width { get; private set; }
         public int Height { get; private set; }
         public List<AnimatedBitmapFrame> Frames { get; private set; }
-        private AnimatedBitmap()
-        {
+        private AnimatedBitmap() { }
 
-        }
-
-        public static async Task<AnimatedBitmap> Create(IRandomAccessStreamReference file)
+        public static async Task<AnimatedBitmap> Create(IRandomAccessStream file)
         {
-            var value = new AnimatedBitmap();
+            var value = new AnimatedBitmap {};
             value.Frames = await value.DecodeImage(file);
             return value;
         }
@@ -37,55 +35,53 @@ namespace PeppermintCommon
         }
 
         #region Animation Decoding
-        private async Task<List<AnimatedBitmapFrame>> DecodeImage(IRandomAccessStreamReference file)
+        private async Task<List<AnimatedBitmapFrame>> DecodeImage(IRandomAccessStream file)
         {
             var results = new List<AnimatedBitmapFrame>();
-            using (var data = await file.OpenReadAsync())
+            var decoder = await BitmapDecoder.CreateAsync(file);
+            Width = (int)decoder.OrientedPixelWidth;
+            Height = (int)decoder.OrientedPixelHeight;
+            byte[] first = null, prev = null;
+            FrameInfo firstInfo = null;
+            for (var i = 0u; i < decoder.FrameCount; i += 1)
             {
-                var decoder = await BitmapDecoder.CreateAsync(data);
-                Width = (int)decoder.OrientedPixelWidth;
-                Height = (int)decoder.OrientedPixelHeight;
-                byte[] first = null, prev = null;
-                FrameInfo firstInfo = null;
-                for (var i = 0u; i < decoder.FrameCount; i += 1)
+                var frame = await decoder.GetFrameAsync(i);
+                var info = await GetFrameInfo(decoder, frame);
+                var bitmapTransform = new BitmapTransform { InterpolationMode = BitmapInterpolationMode.Cubic };
+                var pixelProvider = await frame.GetPixelDataAsync(
+                    BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
+                    bitmapTransform, ExifOrientationMode.RespectExifOrientation,
+                    ColorManagementMode.ColorManageToSRgb);
+                var pixels = pixelProvider.DetachPixelData();
+                if (first == null)
                 {
-                    var frame = await decoder.GetFrameAsync(i);
-                    var info = await GetFrameInfo(decoder, frame);
-                    var bitmapTransform = new BitmapTransform { InterpolationMode = BitmapInterpolationMode.Cubic };
-                    var pixelProvider = await frame.GetPixelDataAsync(
-                        BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
-                        bitmapTransform, ExifOrientationMode.RespectExifOrientation,
-                        ColorManagementMode.ColorManageToSRgb);
-                    var pixels = pixelProvider.DetachPixelData();
-                    if (first == null)
-                    {
-                        first = pixels;
-                        firstInfo = info;
-                        prev = pixels;
-                    }
-                    var cleanframe = MakeFrame(first, firstInfo, pixels, info, prev, firstInfo);
-                    prev = cleanframe;
-
-                    results.Add(new AnimatedBitmapFrame
-                    {
-                        Delay = info.Delay,
-                        Frame = cleanframe
-                    });
+                    first = pixels;
+                    firstInfo = info;
+                    prev = pixels;
                 }
-                return results;
+                var cleanframe = MakeFrame(first, firstInfo, pixels, info, prev, firstInfo);
+                prev = cleanframe;
+
+                results.Add(new AnimatedBitmapFrame
+                {
+                    Delay = info.Delay,
+                    Frame = cleanframe
+                });
             }
+            return results;
         }
+
         private static byte[] MakeFrame(
             byte[] fullImage, FrameInfo fullInfo,
             byte[] rawFrame, FrameInfo frameInfo,
             byte[] previousFrame, FrameInfo previousFrameInfo)
         {
-            if (previousFrameInfo != null && previousFrame != null &&
-                    previousFrameInfo.DisposalMethod == FrameDisposalMethod.Combine)
-            {
+            //if (previousFrameInfo != null && previousFrame != null &&
+            //        previousFrameInfo.DisposalMethod == FrameDisposalMethod.Combine)
+            //{
                 return MergeFrame(previousFrame, previousFrameInfo, rawFrame, frameInfo);
-            }
-            return MergeFrame(fullImage, fullInfo, rawFrame, frameInfo);
+            //}
+            //return MergeFrame(fullImage, fullInfo, rawFrame, frameInfo);
         }
 
         private static byte[] MergeFrame(byte[] under, FrameInfo underInfo, byte[] over, FrameInfo overInfo)
@@ -94,21 +90,19 @@ namespace PeppermintCommon
             // I've looked and nothing seems to be available for "metro" apps.
             var ret = new byte[under.Length];
             Array.Copy(under, ret, under.Length);
-            for (var h = 0; h < overInfo.Height; h += 1)
-            {
+            Parallel.For(0, overInfo.Height-1,(h)=>{
                 var row = h + overInfo.Top;
-                for (var w = 0; w < overInfo.Width; w += 1)
-                {
+                Parallel.For(0, overInfo.Width-1,(w)=>{
                     var col = w + overInfo.Left;
                     var overindex = (h * overInfo.Width + w) * 4;
                     var underindex = (row * underInfo.Width + col) * 4;
 
-                    if (over[overindex + 3] != 255) continue;
+                    if (over[overindex + 3] != 255) return;
                     ret[underindex] = over[overindex];
                     ret[underindex + 1] = over[overindex + 1];
                     ret[underindex + 2] = over[overindex + 2];
-                }
-            }
+                });
+            });
             return ret;
         }
         private enum FrameDisposalMethod
@@ -140,8 +134,8 @@ namespace PeppermintCommon
                 const string heightQuery = "/imgdesc/Height";
                 const string leftQuery = "/imgdesc/Left";
                 const string topQuery = "/imgdesc/Top";
-                var delay= await GetQueryOrNull<ushort>(frame, delayQuery) ?? 10u;
-                frameInfo.Delay = TimeSpan.FromMilliseconds(10 * ((delay!=0)?delay:10));
+                var delay = await GetQueryOrNull<ushort>(frame, delayQuery) ?? 10u;
+                frameInfo.Delay = TimeSpan.FromMilliseconds(10 * ((delay >= 5) ? delay : 10));
                 frameInfo.DisposalMethod = (FrameDisposalMethod)(await GetQueryOrNull<byte>(frame, disposalQuery) ?? 0);
                 frameInfo.Width = await GetQueryOrNull<ushort>(frame, widthQuery) ?? frameInfo.Width;
                 frameInfo.Height = await GetQueryOrNull<ushort>(frame, heightQuery) ?? frameInfo.Height;
