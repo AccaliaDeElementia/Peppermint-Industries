@@ -18,8 +18,8 @@ namespace PeppermintCommon
         private int _current;
         private readonly int _queueLength;
         private  int _cachelength = 1;
-        private readonly SortedDictionary<string, AwaitableLazy<IRandomAccessStream>> _cache =
-            new SortedDictionary<string, AwaitableLazy<IRandomAccessStream>>();
+        private readonly SortedDictionary<string, AwaitableLazy<AnimatedImage>> _cache =
+            new SortedDictionary<string, AwaitableLazy<AnimatedImage>>();
 
         public AnimatedGallery(int queueLength = 5)
         {
@@ -37,7 +37,7 @@ namespace PeppermintCommon
             return new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(strm));
         } 
 
-        public async Task<AwaitableLazy<AnimatedBitmap>> OpenFolder()
+        public async Task<AwaitableLazy<AnimatedImage>> OpenFolder()
         {
             var picker = new FolderPicker
             {
@@ -58,10 +58,10 @@ namespace PeppermintCommon
             await _cache.First().Value.Value;
             _cachelength = _queueLength;
             UpdateCache();
-            return await MakeBitmap(_cache.First().Value);
+            return _cache.First().Value;
         }
 
-        public async Task<AwaitableLazy<AnimatedBitmap>> OpenLastFolder()
+        public async Task<AwaitableLazy<AnimatedImage>> OpenLastFolder()
         {
             try
             {
@@ -77,22 +77,12 @@ namespace PeppermintCommon
                 await _cache.First().Value.Value;
                 _cachelength = _queueLength;
                 UpdateCache();
-                return await MakeBitmap(_cache.First().Value);
+                return _cache.First().Value;
             }
             catch
             {
                 return null;
             }
-        }
-
-        private async static Task<IRandomAccessStream> ReadFile(IStorageFile file)
-        {
-            var strm = new InMemoryRandomAccessStream();
-            using (var reader = await file.OpenStreamForReadAsync())
-            {
-                await reader.CopyToAsync(strm.AsStreamForWrite());
-            }
-            return strm;
         }
 
         private void UpdateCache()
@@ -107,7 +97,7 @@ namespace PeppermintCommon
             foreach (var file in _files.Skip(_current).Take(_queueLength).Where(o => !_cache.ContainsKey(o.Name)))
             {
                 var tgtfile = file;
-                var tgt = new AwaitableLazy<IRandomAccessStream>(()=>ReadFile(tgtfile));
+                var tgt = new AwaitableLazy<AnimatedImage>(()=>AnimatedImage.Create(tgtfile));
                 // Start the Lazy<> container finding a value, we don't want to wait on it though.
                 // ReSharper disable once UnusedVariable
                 var ignore = tgt.Value;
@@ -135,18 +125,18 @@ namespace PeppermintCommon
 
         #region Navigation
         // ReSharper disable once CSharpWarnings::CS1998
-        public async Task<AwaitableLazy<AnimatedBitmap>> NextImage()
+        public async Task<AwaitableLazy<AnimatedImage>> NextImage()
         {
             var nextIdx = _current + 1;
             if (_files == null || !_files.Any() || nextIdx >= _files.Count) return null;
             _current = nextIdx;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return await MakeBitmap(_cache.First().Value);
+            return _cache.First().Value;
         }
 
         // ReSharper disable once CSharpWarnings::CS1998
-        public async Task<AwaitableLazy<AnimatedBitmap>> PrevImage()
+        public async Task<AwaitableLazy<AnimatedImage>> PrevImage()
         {
             var nextIdx = _current - 1;
             if (_files == null || !_files.Any() || nextIdx < 0) return null;
@@ -154,25 +144,25 @@ namespace PeppermintCommon
             _current = nextIdx;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return await MakeBitmap(_cache.First().Value);
+            return _cache.First().Value;
         }
 
         // ReSharper disable once CSharpWarnings::CS1998
-        public async Task<AwaitableLazy<AnimatedBitmap>> LastImage()
+        public async Task<AwaitableLazy<AnimatedImage>> LastImage()
         {
             _current = _files.Count - 1;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return await MakeBitmap(_cache.First().Value);
+            return _cache.First().Value;
         }
 
         // ReSharper disable once CSharpWarnings::CS1998
-        public async Task<AwaitableLazy<AnimatedBitmap>> FirstImage()
+        public async Task<AwaitableLazy<AnimatedImage>> FirstImage()
         {
             _current = 0;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
-            return await MakeBitmap(_cache.First().Value);
+            return _cache.First().Value;
         }
         #endregion Navigation
 

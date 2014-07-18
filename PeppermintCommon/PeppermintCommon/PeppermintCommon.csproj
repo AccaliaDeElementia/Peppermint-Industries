@@ -110,10 +110,12 @@
   <ItemGroup>
     <Compile Include="AnimatedBitmap.cs" />
     <Compile Include="AnimatedGallery.cs" />
+    <Compile Include="AnimatedImage.cs" />
     <Compile Include="AwaitableLazy.cs" />
     <Compile Include="Image.xaml.cs">
       <DependentUpon>Image.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Properties\Annotations.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '12.0' ">

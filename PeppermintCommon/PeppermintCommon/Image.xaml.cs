@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
-using Windows.Storage;
-using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Animation;
-using Windows.UI.Xaml.Media.Imaging;
+using PeppermintCommon.Annotations;
 
 namespace PeppermintCommon
 {
@@ -15,35 +12,20 @@ namespace PeppermintCommon
             InitializeComponent();
         }
 
-        private AnimatedBitmap _imageSource;
+        private AnimatedImage _imageSource;
 
-        public AnimatedBitmap ImageSource
+        public async Task SetImageSource(AnimatedImage value)
         {
-            get { return _imageSource; }
-            set
-            {
                 _imageSource = value;
-                DoLoadImage();
-            }
+                await BuildStoryBoard();
         }
 
-        
         public event EventHandler ImageLoaded = (o, e) => { };
+        public event EventHandler ImageLoading = (o, e) => { };
 
-        public async Task LoadImage(IRandomAccessStream file)
+        private async Task BuildStoryBoard()
         {
-            ImageSource = await AnimatedBitmap.Create(file);
-        }
-
-        private void DoLoadImage()
-        {
-            BuildStoryBoard();
-            PlaybackStoryboard.Begin();
-            ImageLoaded(this, EventArgs.Empty);
-        }
-
-        private void BuildStoryBoard()
-        {
+            ImageLoading(this, EventArgs.Empty);
             PlaybackStoryboard.Stop();
             PlaybackStoryboard.Children.Clear();
             var anim = new ObjectAnimationUsingKeyFrames
@@ -53,17 +35,16 @@ namespace PeppermintCommon
 
             var ts = new TimeSpan();
 
-            foreach (var frame in ImageSource.Frames)
+            foreach (var frame in _imageSource)
             {
-                var bitmap = new WriteableBitmap(ImageSource.Width, ImageSource.Height);
-                bitmap.PixelBuffer.AsStream().Write(frame.Frame, 0, frame.Frame.Length);
+                var val = await frame;
                 var keyFrame = new DiscreteObjectKeyFrame
                 {
                     KeyTime = KeyTime.FromTimeSpan(ts),
-                    Value = bitmap
+                    Value = val.Data
                 };
 
-                ts = ts.Add(frame.Delay);
+                ts = ts.Add(val.Delay);
                 anim.KeyFrames.Add(keyFrame);
             }
 
@@ -71,6 +52,8 @@ namespace PeppermintCommon
             Storyboard.SetTargetProperty(anim, "Source");
 
             PlaybackStoryboard.Children.Add(anim);
+            PlaybackStoryboard.Begin();
+            ImageLoaded(this, EventArgs.Empty);
         }
     }
 }

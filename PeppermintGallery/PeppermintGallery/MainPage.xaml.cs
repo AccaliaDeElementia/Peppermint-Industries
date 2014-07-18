@@ -20,7 +20,7 @@ namespace PeppermintGallery
             Clock();
         }
 
-        private async void LoadImage(Func<Task<AwaitableLazy<AnimatedBitmap>>> generator)
+        private async void LoadImage(Func<Task<AwaitableLazy<AnimatedImage>>> generator)
         {
             lock (_locker)
             {
@@ -68,12 +68,12 @@ namespace PeppermintGallery
             }
         }
 
-        private async Task LoadAnimatedImage(AwaitableLazy<AnimatedBitmap> bitmap)
+        private async Task LoadAnimatedImage(AwaitableLazy<AnimatedImage> bitmap)
         {
             if (bitmap == null) return;
             var file = await bitmap.Value;
             if (file == null) return;
-            Image.ImageSource = file;
+            await Image.SetImageSource(file);
             DoInfoBars();
         }
 
@@ -173,7 +173,7 @@ namespace PeppermintGallery
                     return;
                 }
             }
-            Func<Task<AwaitableLazy<AnimatedBitmap>>> method = null;
+            Func<Task<AwaitableLazy<AnimatedImage>>> method = null;
             switch (args.VirtualKey)
             {
                 case VirtualKey.Left:
