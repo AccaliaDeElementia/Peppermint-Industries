@@ -6,6 +6,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
 
 // The Blank Application template is documented at http://go.microsoft.com/fwlink/?LinkId=234227
+using PeppermintCommon;
 
 namespace PeppermintGallery
 {
@@ -29,7 +30,7 @@ namespace PeppermintGallery
         /// will be used such as when the application is launched to open a specific file.
         /// </summary>
         /// <param name="e">Details about the launch request and process.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs e)
+        protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
             var rootFrame = Window.Current.Content as Frame;
 
@@ -44,9 +45,12 @@ namespace PeppermintGallery
 
                 rootFrame.NavigationFailed += OnNavigationFailed;
 
-                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
+                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated ||
+                    e.PreviousExecutionState == ApplicationExecutionState.NotRunning ||
+                    e.PreviousExecutionState == ApplicationExecutionState.ClosedByUser)
                 {
                     //TODO: Load state from previously suspended application
+                    await AnimatedGallery.LoadHistory();
                 }
 
                 // Place the frame in the current Window
@@ -81,10 +85,11 @@ namespace PeppermintGallery
         /// </summary>
         /// <param name="sender">The source of the suspend request.</param>
         /// <param name="e">Details about the suspend request.</param>
-        private void OnSuspending(object sender, SuspendingEventArgs e)
+        private async void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
             //TODO: Save application state and stop any background activity
+            await AnimatedGallery.SaveHistory();
             deferral.Complete();
         }
     }

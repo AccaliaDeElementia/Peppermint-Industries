@@ -8,6 +8,7 @@ using Windows.Storage;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
+using Newtonsoft.Json;
 
 namespace PeppermintCommon
 {
@@ -17,7 +18,7 @@ namespace PeppermintCommon
         private List<StorageFile> _files;
         private int _current;
         private readonly int _queueLength;
-        private  int _cachelength = 1;
+        private int _cachelength = 1;
         private readonly SortedDictionary<string, AwaitableLazy<AnimatedImage>> _cache =
             new SortedDictionary<string, AwaitableLazy<AnimatedImage>>();
 
@@ -30,12 +31,37 @@ namespace PeppermintCommon
         public string GalleryName { get { return _folder.Name; } }
         public int ImageIndex { get { return _current + 1; } }
         public int ImageCount { get { return _files.Count; } }
+        private static Dictionary<string, string> _history = new Dictionary<string, string>();
 
-        private async static Task<AwaitableLazy<AnimatedBitmap>> MakeBitmap(AwaitableLazy<IRandomAccessStream> stream )
+        public static async Task SaveHistory()
         {
-            var strm = await stream.Value;
-            return new AwaitableLazy<AnimatedBitmap>(() => AnimatedBitmap.Create(strm));
-        } 
+            StorageFile file = null;
+            try
+            {
+                file = await ApplicationData.Current.LocalFolder.GetFileAsync("AnimatedGallery_HISTORY");
+            }
+            // ReSharper disable once EmptyGeneralCatchClause
+            catch { }
+            if (file == null)
+            {
+                file = await ApplicationData.Current.LocalFolder.CreateFileAsync("AnimatedGallery_HISTORY");
+            }
+            var txt = JsonConvert.SerializeObject(_history);
+            await FileIO.WriteTextAsync(file, txt);
+        }
+
+        public static async Task LoadHistory()
+        {
+            try
+            {
+                var file = await ApplicationData.Current.LocalFolder.GetFileAsync("AnimatedGallery_HISTORY");
+                if (file == null) return;
+                var text = await FileIO.ReadTextAsync(file);
+                _history = JsonConvert.DeserializeObject<Dictionary<string, string>>(text);
+            }
+            // ReSharper disable once EmptyGeneralCatchClause
+            catch { }
+        }
 
         public async Task<AwaitableLazy<AnimatedImage>> OpenFolder()
         {
@@ -53,11 +79,16 @@ namespace PeppermintCommon
             if (_folder == null) return null;
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryFolder", _folder);
             await LoadDirectory(_folder);
+            if (_history.ContainsKey(_folder.Path))
+            {
+                _current = _files.FindIndex(x => x.Name == _history[_folder.Path]);
+            }
             UpdateCache();
             // don't enable cache until first image loaded.
             await _cache.First().Value.Value;
             _cachelength = _queueLength;
             UpdateCache();
+            _history[_folder.Path] = _files[_current].Name;
             return _cache.First().Value;
         }
 
@@ -77,6 +108,7 @@ namespace PeppermintCommon
                 await _cache.First().Value.Value;
                 _cachelength = _queueLength;
                 UpdateCache();
+                _history[_folder.Path] = _files[_current].Name;
                 return _cache.First().Value;
             }
             catch
@@ -97,7 +129,7 @@ namespace PeppermintCommon
             foreach (var file in _files.Skip(_current).Take(_queueLength).Where(o => !_cache.ContainsKey(o.Name)))
             {
                 var tgtfile = file;
-                var tgt = new AwaitableLazy<AnimatedImage>(()=>AnimatedImage.Create(tgtfile));
+                var tgt = new AwaitableLazy<AnimatedImage>(() => AnimatedImage.Create(tgtfile));
                 // Start the Lazy<> container finding a value, we don't want to wait on it though.
                 // ReSharper disable once UnusedVariable
                 var ignore = tgt.Value;
@@ -132,6 +164,7 @@ namespace PeppermintCommon
             _current = nextIdx;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
+            _history[_folder.Path] = _files[_current].Name;
             return _cache.First().Value;
         }
 
@@ -144,6 +177,7 @@ namespace PeppermintCommon
             _current = nextIdx;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
+            _history[_folder.Path] = _files[_current].Name;
             return _cache.First().Value;
         }
 
@@ -153,6 +187,7 @@ namespace PeppermintCommon
             _current = _files.Count - 1;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
+            _history[_folder.Path] = _files[_current].Name;
             return _cache.First().Value;
         }
 
@@ -162,6 +197,7 @@ namespace PeppermintCommon
             _current = 0;
             UpdateCache();
             StorageApplicationPermissions.FutureAccessList.AddOrReplace("GalleryImage", _files[_current]);
+            _history[_folder.Path] = _files[_current].Name;
             return _cache.First().Value;
         }
         #endregion Navigation
